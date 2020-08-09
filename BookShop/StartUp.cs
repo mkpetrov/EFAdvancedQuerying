@@ -15,9 +15,19 @@ namespace BookShop
         {
             var context = new BookShopContext();
 
-            var input = Console.ReadLine();
+            var output = RemoveBooks(context);
 
-            var output = GetBookTitlesContaining(context, input);
+            //IncreasePrices(context);
+
+            //var output = CountCopiesByAuthor(context);
+
+            //var input = int.Parse(Console.ReadLine());
+
+            //var output = CountBooks(context, input);
+
+            //var output = GetBooksByAuthor(context, input);
+
+            //var output = GetBookTitlesContaining(context, input);
 
             //var output = GetAuthorNamesEndingIn(context, input);
 
@@ -38,6 +48,77 @@ namespace BookShop
             Console.WriteLine(output);
 
             //Seed(context);
+        }
+
+        public static int RemoveBooks(BookShopContext context)
+        {
+            return context.Database.ExecuteSqlRaw("DELETE FROM Books WHERE Copies < 4200");
+        }
+
+        public static void IncreasePrices(BookShopContext context)
+        {
+            context.Database.ExecuteSqlRaw("UPDATE Books SET Price += 5 WHERE YEAR(ReleaseDate) < 2010");
+        }
+
+        public static string CountCopiesByAuthor(BookShopContext context)
+        {
+            var authors = context.Authors
+                .FromSqlRaw("SELECT * FROM Authors")
+                .ToList();
+
+            var books = context.Books
+                .FromSqlRaw("SELECT * FROM Books")
+                .ToList();
+
+            var authorsCopies = new Dictionary<string, int>();
+
+            foreach (var author in authors)
+            {
+                var bookCopies = books.Where(b => b.AuthorId == author.AuthorId).Sum(b => b.Copies);
+                authorsCopies.Add($"{author.FirstName} {author.LastName}", bookCopies);
+            }
+
+            var sortedAuthorsCopies = authorsCopies.OrderByDescending(ac => ac.Value).ToDictionary(ac => ac.Key, ac => ac.Value);
+
+            var sb = new StringBuilder();
+
+            foreach (var keyValuePair in sortedAuthorsCopies)
+            {
+                sb.AppendLine($"{keyValuePair.Key} - {keyValuePair.Value}");
+            }
+
+            return sb.ToString().Trim();
+        }
+
+        public static int CountBooks(BookShopContext context, int lengthCheck)
+        {
+            var booksCount = context.Books
+                .FromSqlInterpolated($"SELECT * FROM Books WHERE LEN(Title) > {lengthCheck}")
+                .Count();
+
+            return booksCount;
+        }
+
+        public static string GetBooksByAuthor(BookShopContext context, string input)
+        {
+            var authors = context.Authors
+                .FromSqlInterpolated($"SELECT * FROM Authors WHERE LastName LIKE '{input}%'")
+                .ToList();
+
+            var authorIds = authors.Select(a => a.AuthorId);
+            var books = context.Books
+                .Where(b => authorIds.Contains(b.AuthorId))
+                .OrderBy(b => b.BookId)
+                .ToList();
+
+            var sb = new StringBuilder();
+            foreach (var book in books)
+            {
+                var author = authors.Single(a => a.AuthorId == book.AuthorId);
+                sb.AppendLine($"{book.Title} ({author.FirstName} {author.LastName})");
+            }
+
+            return sb.ToString().Trim();
         }
 
         public static string GetBookTitlesContaining(BookShopContext context, string input)
